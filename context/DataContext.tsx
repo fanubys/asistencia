@@ -3,6 +3,7 @@ import { collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc, runTransacti
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
 import { db } from '../firebase/config.ts';
 import { useAuth } from './AuthContext.tsx';
+import { generateAvatar } from '../lib/gemini.ts';
 
 type Unsubscribe = () => void;
 
@@ -118,10 +119,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const addStudent = withUser(async (uid: string, groupId: string, studentData: Omit<Student, 'id' | 'photoUrl' | 'observations'> & { observations?: string }) => {
+    const photoUrl = await generateAvatar(studentData.name);
     const newStudent: Student = {
       ...studentData,
       id: `s${Date.now()}`,
-      photoUrl: `https://picsum.photos/seed/s${Date.now()}/100`,
+      photoUrl: photoUrl,
       observations: studentData.observations || '',
     };
     const groupRef = doc(db, 'users', uid, 'groups', groupId);

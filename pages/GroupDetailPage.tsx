@@ -10,6 +10,7 @@ import ImageZoom from '../components/ui/ImageZoom.tsx';
 import { useData } from '../hooks/useData.ts';
 import { Student } from '../types.ts';
 import { PlusCircleIcon, PencilIcon, TrashIcon, UploadIcon } from '../components/ui/Icons.tsx';
+import { generateAvatar } from '../lib/gemini.ts';
 
 const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -18,6 +19,7 @@ const GroupDetailPage: React.FC = () => {
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
@@ -80,33 +82,47 @@ const GroupDetailPage: React.FC = () => {
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && group) {
+      setIsImporting(true);
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
         complete: async (results) => {
-          const newStudents = results.data.map((row: any, index: number) => {
-            const name = (row.nombre || row.name || '').trim();
-            const lastName = (row.apellido || row.lastname || '').trim();
-            const fullName = `${name} ${lastName}`.trim();
+          try {
+            const studentData = (results.data as any[]).map(row => {
+              const name = (row.nombre || row.name || '').trim();
+              const lastName = (row.apellido || row.lastname || '').trim();
+              const fullName = `${name} ${lastName}`.trim();
+              if (!fullName) return null;
+              return { name: fullName };
+            }).filter(Boolean);
 
-            if (!fullName) return null;
-
-            const randomSeed = `${Date.now()}-${index}`;
-            return {
-              id: `s${randomSeed}`,
-              name: fullName,
-              photoUrl: `https://picsum.photos/seed/${randomSeed}/100`,
-              observations: '',
-            };
-          }).filter(Boolean) as Student[];
-
-          if (newStudents.length > 0) {
-            await addStudentsBulk(group.id, newStudents);
-            alert(`${newStudents.length} estudiantes importados correctamente.`);
+            const newStudents: Student[] = [];
+            for (const [index, data] of studentData.entries()) {
+              if (data) {
+                const photoUrl = await generateAvatar(data.name);
+                newStudents.push({
+                  id: `s${Date.now()}-${index}`,
+                  name: data.name,
+                  photoUrl: photoUrl,
+                  observations: '',
+                });
+              }
+            }
+            
+            if (newStudents.length > 0) {
+              await addStudentsBulk(group.id, newStudents);
+              alert(`${newStudents.length} estudiantes importados correctamente.`);
+            }
+          } catch(error) {
+            console.error("Error during bulk import:", error);
+            alert('Ocurrió un error al generar los avatares para los estudiantes.');
+          } finally {
+            setIsImporting(false);
           }
         },
         error: (error) => {
             alert(`Error al importar el archivo: ${error.message}`);
+            setIsImporting(false);
         }
       });
       event.target.value = ''; // Reset file input
@@ -137,8 +153,8 @@ const GroupDetailPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
           <h3 className="text-lg font-bold">Estudiantes ({group.students.length})</h3>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-              <UploadIcon className="w-5 h-5"/> Importar (.csv)
+            <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
+              <UploadIcon className="w-5 h-5"/> {isImporting ? 'Importando...' : 'Importar (.csv)'}
             </Button>
             <Button variant="secondary" onClick={() => setIsAddModalOpen(true)}>
               <PlusCircleIcon className="w-5 h-5" /> Añadir

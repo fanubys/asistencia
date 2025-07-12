@@ -1,6 +1,6 @@
 {
   "name": "Asistencia Pro",
-  "description": "Una aplicación web progresiva para la gestión de asistencia escolar. Permite crear grupos, registrar la asistencia diaria con fotos y observaciones, y visualizar estadísticas detalladas. Funciona offline y soporta temas visuales.",
+  "description": "Una aplicación web progresiva para la gestión de asistencia escolar. Permite crear grupos, registrar la asistencia diaria y visualizar estadísticas. Ahora con avatares de estudiantes generados por IA de Google.",
   "requestFramePermissions": [
     "camera"
   ],

@@ -1,8 +1,10 @@
-import { initializeApp, FirebaseApp } from "firebase/app";
+
+import { initializeApp } from "firebase/app";
+import type { FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore, enableIndexedDbPersistence } from "firebase/firestore";
 
-// Your web app's Firebase configuration provided by the user
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyA7sqMHexmWhiztn0GAlP1p5IzwehRvbw8",
   authDomain: "asistencia-pro.firebaseapp.com",

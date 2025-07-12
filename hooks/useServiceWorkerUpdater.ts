@@ -6,45 +6,54 @@ export const useServiceWorkerUpdater = () => {
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      // Register the service worker using a root-relative path.
-      // This is more robust than constructing an absolute URL with `new URL()`,
-      // which can fail with "Invalid URL" errors in certain sandboxed environments
-      // (like some IDEs or iframes) where `window.location.href` may not be a valid base URL.
-      // The service worker file is expected to be at the root of the web server.
-      const swUrl = '/service-worker.js';
-
-      navigator.serviceWorker.register(swUrl)
-        .then(registration => {
-          // Listen for the updatefound event
-          registration.onupdatefound = () => {
-            const installingWorker = registration.installing;
-            if (installingWorker) {
-              // Listen for state changes on the installing worker
-              installingWorker.onstatechange = () => {
-                if (installingWorker.state === 'installed') {
-                  // A new service worker is installed and waiting
-                  if (navigator.serviceWorker.controller) {
-                    console.log('New update is available.');
-                    setWaitingWorker(installingWorker);
-                    setUpdateAvailable(true);
+      const registerServiceWorker = () => {
+        // Construct an absolute URL for the service worker to prevent issues in
+        // sandboxed environments where relative paths or base URLs can be misleading.
+        // Using `window.location.origin` ensures the path is resolved against the
+        // correct origin of the application.
+        const swUrl = `${window.location.origin}/service-worker.js`;
+        navigator.serviceWorker.register(swUrl)
+          .then(registration => {
+            registration.onupdatefound = () => {
+              const installingWorker = registration.installing;
+              if (installingWorker) {
+                installingWorker.onstatechange = () => {
+                  if (installingWorker.state === 'installed') {
+                    if (navigator.serviceWorker.controller) {
+                      console.log('New update is available. Waiting for user to refresh.');
+                      setWaitingWorker(installingWorker);
+                      setUpdateAvailable(true);
+                    }
                   }
-                }
-              };
-            }
-          };
-        })
-        .catch(error => {
-          console.error('Service Worker registration failed:', error);
-        });
+                };
+              }
+            };
+          })
+          .catch(error => {
+            console.error('Service Worker registration failed:', error);
+          });
+      };
+
+      // Delay registration until after the page has fully loaded.
+      // This is the standard practice and avoids "document is in an invalid state" errors.
+      window.addEventListener('load', registerServiceWorker);
+
+      // Cleanup the event listener when the component unmounts.
+      return () => {
+        window.removeEventListener('load', registerServiceWorker);
+      };
     }
   }, []);
 
   const refreshPage = () => {
     if (waitingWorker) {
-      // Send a message to the waiting worker to activate immediately
+      // Send a message to the waiting worker to skip the waiting phase
+      // and activate immediately.
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
       
-      // Reload the page once the new service worker has taken control
+      // Reload the page once the new service worker has taken control.
+      // The 'controllerchange' event fires when the document's service worker
+      // has been replaced.
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         window.location.reload();
       });
