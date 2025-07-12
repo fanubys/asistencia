@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 
 export const useServiceWorkerUpdater = () => {
@@ -7,8 +6,14 @@ export const useServiceWorkerUpdater = () => {
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      // Register the service worker
-      navigator.serviceWorker.register('./service-worker.js')
+      // Register the service worker using a root-relative path.
+      // This is more robust than constructing an absolute URL with `new URL()`,
+      // which can fail with "Invalid URL" errors in certain sandboxed environments
+      // (like some IDEs or iframes) where `window.location.href` may not be a valid base URL.
+      // The service worker file is expected to be at the root of the web server.
+      const swUrl = '/service-worker.js';
+
+      navigator.serviceWorker.register(swUrl)
         .then(registration => {
           // Listen for the updatefound event
           registration.onupdatefound = () => {

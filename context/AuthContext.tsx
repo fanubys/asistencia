@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signInAnonymously, signOut } from 'firebase/auth';
 import { auth } from '../firebase/config.ts';
 
 interface AuthContextProps {
@@ -20,6 +20,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (!auth) {
         console.error("Firebase Auth no está configurado.");
+        setError("La configuración de Firebase Auth es inválida.");
         setLoading(false);
         return;
     }
@@ -40,24 +41,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw err;
     }
 
-    const ADMIN_EMAIL = 'admin@asistencia.pro';
-    const ADMIN_PASSWORD = 'default-password-for-admin-user';
-
+    // Only sign in if there's no current user.
+    if (auth.currentUser) {
+      setUser(auth.currentUser);
+      return;
+    }
+    
     try {
-      await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
+      await signInAnonymously(auth);
     } catch (err: any) {
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        try {
-          // If admin user doesn't exist, create it. It will also sign in the user.
-          await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
-        } catch (signupErr: any) {
-          setError(signupErr.message || 'No se pudo crear el usuario administrador.');
-          throw signupErr;
-        }
-      } else {
-        setError(err.message || 'Error al iniciar sesión.');
-        throw err;
+      console.error("Anonymous Sign-In Failed:", err);
+      let friendlyError = "No se pudo iniciar sesión. Por favor, verifica tu conexión e inténtalo de nuevo.";
+      if (err.code === 'auth/operation-not-allowed') {
+          friendlyError = "El inicio de sesión anónimo no está habilitado para este proyecto."
       }
+      setError(friendlyError);
+      throw new Error(friendlyError);
     }
   };
 
@@ -67,6 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err: any) {
         console.error("Error signing out: ", err);
         setError(err.message || 'Error al cerrar sesión.');
+        throw err;
     }
   };
 
