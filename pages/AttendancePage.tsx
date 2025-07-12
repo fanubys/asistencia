@@ -5,7 +5,7 @@ import Button from '../components/ui/Button.tsx';
 import Card from '../components/ui/Card.tsx';
 import ImageZoom from '../components/ui/ImageZoom.tsx';
 import { useData } from '../hooks/useData.ts';
-import { AttendanceRecord, AttendanceStatus, Student } from '../types.ts';
+import { AttendanceRecord, AttendanceStatus } from '../types.ts';
 import { ATTENDANCE_STATUS_OPTIONS } from '../constants.ts';
 
 const AttendancePage: React.FC = () => {
@@ -55,15 +55,10 @@ const AttendancePage: React.FC = () => {
   const handlePhotoUpload = (studentId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const photoUrl = e.target?.result as string;
-        // In a real implementation, this would call a function from context
-        // to upload the image to Firebase Storage and update the student's photoUrl.
-        console.log(`Photo updated for student ${studentId}:`, photoUrl.substring(0, 50) + '...');
-        alert('La subida de fotos no está implementada en esta versión, pero podría añadirse en el futuro.');
-      };
-      reader.readAsDataURL(file);
+      // In a real implementation, this would call a function from context
+      // to upload the image to Firebase Storage and update the student's photoUrl.
+      console.log(`Photo upload initiated for student ${studentId}`);
+      alert('La subida de fotos no está implementada en esta versión, pero podría añadirse en el futuro.');
     }
   };
 
@@ -88,56 +83,58 @@ const AttendancePage: React.FC = () => {
     <div className="p-4 space-y-6">
       <Header title={`Asistencia: ${group.name}`} />
       <Card>
-        <label htmlFor="attendance-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha</label>
+        <label htmlFor="attendance-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Fecha de Asistencia</label>
         <input
           type="date"
           id="attendance-date"
           value={date}
           onChange={e => setDate(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600"
+          className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-slate-700 dark:border-slate-600"
         />
       </Card>
       <div className="space-y-4">
-        {group.students.map(student => {
+        {group.students.map((student, index) => {
           const record = attendanceRecords.get(student.id);
           return (
-            <Card key={student.id}>
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                <div className="flex-shrink-0 text-center">
-                  <ImageZoom src={student.photoUrl || ''} alt={student.name} className="w-20 h-20 rounded-full object-cover mx-auto" />
-                  <label htmlFor={`photo-upload-${student.id}`} className="mt-2 text-sm text-primary-600 dark:text-primary-400 cursor-pointer hover:underline">
-                    Cambiar foto
-                  </label>
-                  <input type="file" id={`photo-upload-${student.id}`} accept="image/*" capture="user" className="hidden" onChange={(e) => handlePhotoUpload(student.id, e)} />
-                  <p className="font-bold mt-1 text-gray-800 dark:text-gray-200">{student.name}</p>
-                </div>
-                <div className="flex-1 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {ATTENDANCE_STATUS_OPTIONS.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => handleStatusChange(student.id, opt.value)}
-                        className={`px-3 py-1 text-sm font-medium rounded-full border-2 transition-colors ${record?.status === opt.value ? 'bg-primary-600 text-white border-primary-600' : 'bg-transparent border-gray-300 dark:border-gray-600 hover:border-primary-500'}`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+            <div key={student.id} className="list-item-animation" style={{ animationDelay: `${index * 50}ms` }}>
+              <Card>
+                <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                  <div className="flex-shrink-0 text-center w-full sm:w-24">
+                    <ImageZoom src={student.photoUrl || ''} alt={student.name} className="w-20 h-20 rounded-full object-cover mx-auto" />
+                    <label htmlFor={`photo-upload-${student.id}`} className="mt-2 text-xs text-primary-600 dark:text-primary-400 cursor-pointer hover:underline">
+                      Cambiar foto
+                    </label>
+                    <input type="file" id={`photo-upload-${student.id}`} accept="image/*" capture="user" className="hidden" onChange={(e) => handlePhotoUpload(student.id, e)} />
+                    <p className="font-bold mt-1 text-slate-800 dark:text-slate-200 truncate">{student.name}</p>
                   </div>
-                  <textarea
-                    placeholder="Observaciones..."
-                    value={record?.observations || ''}
-                    onChange={e => handleObservationChange(student.id, e.target.value)}
-                    rows={2}
-                    className="block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600"
-                  />
+                  <div className="flex-1 space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {ATTENDANCE_STATUS_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleStatusChange(student.id, opt.value)}
+                          className={`px-3 py-1 text-sm font-medium rounded-full border-2 transition-all duration-200 transform active:scale-95 ${record?.status === opt.value ? 'bg-primary-600 text-white border-primary-600 shadow-md' : 'bg-transparent border-slate-300 dark:border-slate-600 hover:border-primary-500'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      placeholder="Observaciones..."
+                      value={record?.observations || ''}
+                      onChange={e => handleObservationChange(student.id, e.target.value)}
+                      rows={2}
+                      className="block w-full text-sm rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-slate-700 dark:border-slate-600"
+                    />
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
           );
         })}
       </div>
       <div className="flex justify-end pb-4">
-        <Button onClick={handleSave} variant="primary" className="w-full sm:w-auto" disabled={isSaving}>
+        <Button onClick={handleSave} variant="primary" className="w-full sm:w-auto text-lg py-3" disabled={isSaving}>
           {isSaving ? 'Guardando...' : 'Guardar Asistencia'}
         </Button>
       </div>

@@ -1,31 +1,55 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import "firebase/compat/firestore";
 
-// Firebase configuration is securely sourced from environment variables.
-// Ensure these variables are set in your deployment environment (e.g., Netlify, Vercel).
+// =================================================================
+// ¡ACCIÓN REQUERIDA!
+//
+// Para que la aplicación se conecte a la nube, debes reemplazar
+// los valores de marcador de posición a continuación con la
+// configuración de tu propio proyecto de Firebase.
+//
+// 1. Ve a la consola de Firebase: https://console.firebase.google.com/
+// 2. Crea un nuevo proyecto (o selecciona uno existente).
+// 3. Ve a la configuración de tu proyecto (icono de engranaje).
+// 4. En la pestaña "General", desplázate hacia abajo hasta
+//    "Tus aplicaciones".
+// 5. Si no tienes una aplicación web, haz clic en el icono `</>`
+//    para crear una.
+// 6. Firebase te proporcionará un objeto `firebaseConfig`.
+//    Copia y pega los valores aquí.
+// =================================================================
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
+  apiKey: "AIzaSy...REPLACE_WITH_YOUR_API_KEY",
+  authDomain: "your-project-id.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "1:your-sender-id:web:your-app-id"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+export const initializeFirebase = () => {
+  // Check if the config is still using placeholder values
+  if (firebaseConfig.apiKey.startsWith("AIzaSy...REPLACE")) {
+    throw new Error("FIREBASE_CONFIG_MISSING");
+  }
 
-// Enable offline persistence for a better PWA experience
-enableIndexedDbPersistence(db)
-  .catch((err) => {
-    if (err.code == 'failed-precondition') {
-      console.warn("Firebase persistence failed: multiple tabs open.");
-    } else if (err.code == 'unimplemented') {
-      console.warn("Firebase persistence not available in this browser.");
-    }
-  });
+  const app = firebase.apps.length
+    ? firebase.app()
+    : firebase.initializeApp(firebaseConfig);
+  
+  const auth = app.auth();
+  const db = app.firestore();
+  
+  // Enable offline persistence for a better PWA experience
+  db.enablePersistence()
+    .catch((err) => {
+      if (err.code == 'failed-precondition') {
+        console.warn("Firebase persistence failed: multiple tabs open.");
+      } else if (err.code == 'unimplemented') {
+        console.warn("Firebase persistence not available in this browser.");
+      }
+    });
 
-export { app, auth, db };
+  return { auth, db };
+};

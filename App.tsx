@@ -17,15 +17,17 @@ const App: React.FC = () => {
       <DataProvider>
         <HashRouter>
           <MainLayout>
-            <Routes>
-              <Route path="/" element={<Navigate to="/inicio" replace />} />
-              <Route path="/inicio" element={<HomePage />} />
-              <Route path="/grupos" element={<GroupsPage />} />
-              <Route path="/grupos/:groupId" element={<GroupDetailPage />} />
-              <Route path="/asistencia/:groupId" element={<AttendancePage />} />
-              <Route path="/estadisticas" element={<StatisticsPage />} />
-              <Route path="/configuracion" element={<SettingsPage />} />
-            </Routes>
+            <div className="page-container">
+              <Routes>
+                <Route path="/" element={<Navigate to="/inicio" replace />} />
+                <Route path="/inicio" element={<HomePage />} />
+                <Route path="/grupos" element={<GroupsPage />} />
+                <Route path="/grupos/:groupId" element={<GroupDetailPage />} />
+                <Route path="/asistencia/:groupId" element={<AttendancePage />} />
+                <Route path="/estadisticas" element={<StatisticsPage />} />
+                <Route path="/configuracion" element={<SettingsPage />} />
+              </Routes>
+            </div>
           </MainLayout>
         </HashRouter>
         <UpdateNotifier />

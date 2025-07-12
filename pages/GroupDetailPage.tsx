@@ -84,17 +84,18 @@ const GroupDetailPage: React.FC = () => {
         header: true,
         skipEmptyLines: true,
         complete: async (results) => {
-          const newStudents = results.data.map((row: any) => {
+          const newStudents = results.data.map((row: any, index: number) => {
             const name = (row.nombre || row.name || '').trim();
             const lastName = (row.apellido || row.lastname || '').trim();
             const fullName = `${name} ${lastName}`.trim();
 
             if (!fullName) return null;
 
+            const randomSeed = `${Date.now()}-${index}`;
             return {
-              id: `s${Date.now()}-${Math.random()}`,
+              id: `s${randomSeed}`,
               name: fullName,
-              photoUrl: `https://picsum.photos/seed/s${Date.now()}-${Math.random()}/100`,
+              photoUrl: `https://picsum.photos/seed/${randomSeed}/100`,
               observations: '',
             };
           }).filter(Boolean) as Student[];
@@ -145,64 +146,63 @@ const GroupDetailPage: React.FC = () => {
           </div>
         </div>
         <div className="space-y-3">
-          {group.students.map(student => (
-            <div key={student.id} className="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg transition-shadow hover:shadow-md">
+          {group.students.map((student, index) => (
+            <div 
+              key={student.id} 
+              className="flex items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg transition-all duration-300 hover:shadow-md hover:bg-slate-100 dark:hover:bg-slate-700 list-item-animation"
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
               <ImageZoom src={student.photoUrl || ''} alt={student.name} className="w-12 h-12 rounded-full object-cover mr-4 flex-shrink-0" />
               <div className="flex-grow">
-                <p className="font-medium text-gray-800 dark:text-gray-200">{student.name}</p>
+                <p className="font-medium text-slate-800 dark:text-slate-200">{student.name}</p>
                 {student.observations && (
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">{student.observations}</p>
+                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 italic">{student.observations}</p>
                 )}
               </div>
-              <div className="flex items-center space-x-2 ml-2">
-                 <button onClick={() => openEditModal(student)} className="p-2 rounded-full text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/50 dark:hover:text-blue-400 transition-colors" aria-label={`Editar a ${student.name}`}>
+              <div className="flex items-center space-x-1 ml-2">
+                 <button onClick={() => openEditModal(student)} className="p-2 rounded-full text-slate-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/50 dark:hover:text-blue-400 transition-colors" aria-label={`Editar a ${student.name}`}>
                     <PencilIcon />
                  </button>
-                 <button onClick={() => setStudentToDelete(student)} className="p-2 rounded-full text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400 transition-colors" aria-label={`Eliminar a ${student.name}`}>
+                 <button onClick={() => setStudentToDelete(student)} className="p-2 rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400 transition-colors" aria-label={`Eliminar a ${student.name}`}>
                     <TrashIcon />
                  </button>
               </div>
             </div>
           ))}
           {group.students.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-4">Aún no hay estudiantes en este grupo. Añade uno o impórtalos desde un archivo CSV.</p>
+            <p className="text-center text-slate-500 dark:text-slate-400 py-4">Aún no hay estudiantes en este grupo. Añade uno o impórtalos desde un archivo CSV.</p>
           )}
         </div>
       </Card>
       
-      {/* Add Student Modal */}
-      <Modal title="Añadir Estudiante" isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)}>
-        <form onSubmit={handleAddStudent} className="space-y-4">
+      {/* Add/Edit Student Modals */}
+      <Modal title={studentToEdit ? "Editar Estudiante" : "Añadir Estudiante"} isOpen={isAddModalOpen || !!studentToEdit} onClose={() => { setIsAddModalOpen(false); setStudentToEdit(null); }}>
+        <form onSubmit={studentToEdit ? handleEditStudent : handleAddStudent} className="space-y-4">
           <div>
-            <label htmlFor="studentName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre del Estudiante</label>
-            <input type="text" id="studentName" value={newStudentData.name} onChange={e => setNewStudentData({ ...newStudentData, name: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600" required />
+            <label htmlFor="studentName" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del Estudiante</label>
+            <input 
+              type="text" 
+              id="studentName" 
+              value={studentToEdit ? editStudentData.name : newStudentData.name} 
+              onChange={e => studentToEdit ? setEditStudentData({ ...editStudentData, name: e.target.value }) : setNewStudentData({ ...newStudentData, name: e.target.value })} 
+              className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-slate-700 dark:border-slate-600" 
+              required 
+            />
           </div>
           <div>
-            <label htmlFor="studentObservations" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Observaciones</label>
-            <textarea id="studentObservations" value={newStudentData.observations} onChange={e => setNewStudentData({ ...newStudentData, observations: e.target.value })} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600" placeholder="Alergias, necesidades especiales, etc." />
+            <label htmlFor="studentObservations" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Observaciones</label>
+            <textarea 
+              id="studentObservations" 
+              value={studentToEdit ? editStudentData.observations : newStudentData.observations} 
+              onChange={e => studentToEdit ? setEditStudentData({ ...editStudentData, observations: e.target.value }) : setNewStudentData({ ...newStudentData, observations: e.target.value })} 
+              rows={3} 
+              className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-slate-700 dark:border-slate-600" 
+              placeholder="Alergias, necesidades especiales, etc." 
+            />
           </div>
           <div className="flex justify-end pt-4">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Guardando...' : 'Guardar Estudiante'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Edit Student Modal */}
-      <Modal title="Editar Estudiante" isOpen={!!studentToEdit} onClose={() => setStudentToEdit(null)}>
-        <form onSubmit={handleEditStudent} className="space-y-4">
-          <div>
-            <label htmlFor="editStudentName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre del Estudiante</label>
-            <input type="text" id="editStudentName" value={editStudentData.name} onChange={e => setEditStudentData({ ...editStudentData, name: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600" required />
-          </div>
-          <div>
-            <label htmlFor="editStudentObservations" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Observaciones</label>
-            <textarea id="editStudentObservations" value={editStudentData.observations} onChange={e => setEditStudentData({ ...editStudentData, observations: e.target.value })} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600" placeholder="Alergias, necesidades especiales, etc." />
-          </div>
-          <div className="flex justify-end pt-4">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+              {isSubmitting ? 'Guardando...' : (studentToEdit ? 'Guardar Cambios' : 'Añadir Estudiante')}
             </Button>
           </div>
         </form>

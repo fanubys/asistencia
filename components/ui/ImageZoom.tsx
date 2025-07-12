@@ -10,7 +10,10 @@ interface ImageZoomProps {
 const ImageZoom: React.FC<ImageZoomProps> = ({ src, alt, className }) => {
   const [isZoomed, setIsZoomed] = useState(false);
 
-  const handleZoomIn = () => setIsZoomed(true);
+  const handleZoomIn = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsZoomed(true);
+  }
   const handleZoomOut = () => setIsZoomed(false);
 
   return (
@@ -23,28 +26,12 @@ const ImageZoom: React.FC<ImageZoomProps> = ({ src, alt, className }) => {
       />
       {isZoomed && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm animate-fade-in"
           onClick={handleZoomOut}
         >
-          <style>{`
-            @keyframes fade-in {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-            .animate-fade-in {
-              animation: fade-in 0.3s ease-out forwards;
-            }
-            @keyframes zoom-in {
-              from { transform: scale(0.8); opacity: 0; }
-              to { transform: scale(1); opacity: 1; }
-            }
-            .animate-zoom-in {
-              animation: zoom-in 0.3s ease-out forwards;
-            }
-          `}</style>
           <button
             onClick={handleZoomOut}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 z-50"
+            className="absolute top-4 right-4 text-white hover:text-slate-300 z-50 transition-transform hover:scale-110"
             aria-label="Cerrar"
           >
             <CloseIcon className="w-8 h-8" />

@@ -4,23 +4,35 @@ import Header from '../components/layout/Header.tsx';
 import Card from '../components/ui/Card.tsx';
 import { useData } from '../hooks/useData.ts';
 import { AttendanceStatus } from '../types.ts';
+import { useTheme } from '../hooks/useTheme.ts';
 
-const COLORS = {
-  [AttendanceStatus.Presente]: '#10b981',
-  [AttendanceStatus.Ausente]: '#ef4444',
-  [AttendanceStatus.Tardanza]: '#f59e0b',
-  [AttendanceStatus.Justificado]: '#3b82f6',
+const COLORS: Record<AttendanceStatus, { light: string, dark: string }> = {
+  [AttendanceStatus.Presente]: { light: '#10b981', dark: '#34d399' },
+  [AttendanceStatus.Ausente]: { light: '#ef4444', dark: '#f87171' },
+  [AttendanceStatus.Tardanza]: { light: '#f59e0b', dark: '#fbbf24' },
+  [AttendanceStatus.Justificado]: { light: '#3b82f6', dark: '#60a5fa' },
 };
 
 const StatisticsPage: React.FC = () => {
   const { state } = useData();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  const axisColor = isDark ? '#94a3b8' : '#64748b';
+  const tooltipStyle = { 
+    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+    borderColor: isDark ? '#334155' : '#e2e8f0',
+    color: isDark ? '#f1f5f9' : '#0f172a',
+    backdropFilter: 'blur(4px)',
+    borderRadius: '0.5rem'
+  };
 
   const groupAttendanceData = useMemo(() => {
     return state.groups.map(group => {
       const groupStudentIds = new Set(group.students.map(s => s.id));
       const groupAttendance = state.attendance.filter(a => groupStudentIds.has(a.studentId));
       const totalPossible = groupAttendance.length;
-      const presentCount = groupAttendance.filter(a => a.status === AttendanceStatus.Presente).length;
+      const presentCount = groupAttendance.filter(a => a.status === AttendanceStatus.Presente || a.status === AttendanceStatus.Tardanza).length;
       const percentage = totalPossible > 0 ? (presentCount / totalPossible) * 100 : 0;
       return {
         name: group.name,
@@ -43,29 +55,23 @@ const StatisticsPage: React.FC = () => {
       <Header title="Estadísticas" />
 
       <Card>
-        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Porcentaje de Asistencia por Grupo</h3>
+        <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">Porcentaje de Asistencia por Grupo</h3>
         <div style={{ width: '100%', height: 300 }}>
           <ResponsiveContainer>
-            <BarChart data={groupAttendanceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
-              <XAxis dataKey="name" stroke="#6b7280" />
-              <YAxis unit="%" stroke="#6b7280" />
-              <Tooltip
-                contentStyle={{ 
-                  backgroundColor: 'rgba(31, 41, 55, 0.8)',
-                  borderColor: '#4b5563',
-                  color: '#ffffff'
-                }} 
-              />
-              <Legend />
-              <Bar dataKey="Asistencia" fill="#10b981" />
+            <BarChart data={groupAttendanceData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "rgba(100, 116, 139, 0.2)" : "rgba(203, 213, 225, 0.5)"} />
+              <XAxis dataKey="name" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis unit="%" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(100, 116, 139, 0.1)' : 'rgba(203, 213, 225, 0.3)' }} />
+              <Legend wrapperStyle={{ fontSize: '14px' }}/>
+              <Bar dataKey="Asistencia" fill={isDark ? COLORS.Presente.dark : COLORS.Presente.light} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
       <Card>
-        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Distribución General de Asistencia</h3>
+        <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-white">Distribución General de Asistencia</h3>
         <div style={{ width: '100%', height: 300 }}>
           <ResponsiveContainer>
             <PieChart>
@@ -78,19 +84,15 @@ const StatisticsPage: React.FC = () => {
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"
+                stroke={isDark ? '#0f172a' : '#ffffff'}
+                className="focus:outline-none"
               >
                 {overallStatusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[entry.name as AttendanceStatus]} />
+                  <Cell key={`cell-${index}`} fill={isDark ? COLORS[entry.name as AttendanceStatus].dark : COLORS[entry.name as AttendanceStatus].light} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{ 
-                  backgroundColor: 'rgba(31, 41, 55, 0.8)',
-                  borderColor: '#4b5563',
-                  color: '#ffffff'
-                }} 
-              />
-              <Legend />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: '14px' }}/>
             </PieChart>
           </ResponsiveContainer>
         </div>
