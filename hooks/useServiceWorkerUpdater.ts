@@ -2,23 +2,48 @@
 import { useState, useEffect } from 'react';
 
 export const useServiceWorkerUpdater = () => {
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
-    // Simulate checking for an update after a delay
-    const timer = setTimeout(() => {
-      // In a real PWA, you would listen for the 'updatefound' event on the service worker registration.
-      // For this simulation, we'll just set it to true.
-      console.log('Simulating update check: New version found!');
-      setUpdateAvailable(true);
-    }, 10000); // Check after 10 seconds
-
-    return () => clearTimeout(timer);
+    if ('serviceWorker' in navigator) {
+      // Register the service worker
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(registration => {
+          // Listen for the updatefound event
+          registration.onupdatefound = () => {
+            const installingWorker = registration.installing;
+            if (installingWorker) {
+              // Listen for state changes on the installing worker
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === 'installed') {
+                  // A new service worker is installed and waiting
+                  if (navigator.serviceWorker.controller) {
+                    console.log('New update is available.');
+                    setWaitingWorker(installingWorker);
+                    setUpdateAvailable(true);
+                  }
+                }
+              };
+            }
+          };
+        })
+        .catch(error => {
+          console.error('Service Worker registration failed:', error);
+        });
+    }
   }, []);
 
   const refreshPage = () => {
-    // In a real PWA, this would post a message to the new service worker to skip waiting.
-    window.location.reload();
+    if (waitingWorker) {
+      // Send a message to the waiting worker to activate immediately
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      
+      // Reload the page once the new service worker has taken control
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+    }
   };
 
   return { updateAvailable, refreshPage };

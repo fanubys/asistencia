@@ -1,8 +1,11 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import { collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc, runTransaction, writeBatch, query, where, getDocs, arrayUnion } from 'firebase/firestore';
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
-import { MOCK_DATA } from './mockData.ts';
+import { db } from '../firebase/config.ts';
+import { useAuth } from './AuthContext.tsx';
 
-// The shape of the context value
+type Unsubscribe = () => void;
+
 interface DataContextProps {
   state: DataState;
   loading: boolean;
@@ -19,113 +22,174 @@ interface DataContextProps {
 export const DataContext = createContext<DataContextProps | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<DataState>(() => {
-    try {
-      const localData = localStorage.getItem('asistencia-pro-data');
-      if (localData) {
-        return JSON.parse(localData);
-      }
-    } catch (e) {
-      console.error("Failed to parse local data", e);
-    }
-    // If no local data, start with mock data.
-    return MOCK_DATA;
-  });
-
-  const [loading, setLoading] = useState(false); // Not loading from a remote source anymore
+  const { user } = useAuth();
+  const [state, setState] = useState<DataState>({ groups: [], attendance: [] });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Persist state to localStorage whenever it changes
   useEffect(() => {
-    try {
-      localStorage.setItem('asistencia-pro-data', JSON.stringify(state));
-    } catch (e) {
-      console.error("Failed to save data to localStorage", e);
-      setError("No se pudieron guardar los datos localmente.");
+    if (!user) {
+      setState({ groups: [], attendance: [] });
+      setLoading(false); 
+      return;
     }
-  }, [state]);
 
-  const addGroup = async (groupData: Omit<Group, 'id' | 'students'>) => {
-    const newGroup: Group = { ...groupData, id: `g${Date.now()}`, students: [] };
-    setState(currentState => ({
-      ...currentState,
-      groups: [...currentState.groups, newGroup],
-    }));
+    if (!db) {
+      setError("La configuración de Firebase no es válida o está ausente. La aplicación no puede conectarse a la base de datos.");
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    const uid = user.uid;
+    let unsubGroups: Unsubscribe | undefined;
+    let unsubAttendance: Unsubscribe | undefined;
+
+    try {
+      const groupsQuery = query(collection(db, 'users', uid, 'groups'));
+      unsubGroups = onSnapshot(
+        groupsQuery,
+        (snapshot) => {
+          const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group));
+          setState(prevState => ({ ...prevState, groups }));
+          setLoading(false);
+        }, 
+        (err) => {
+          console.error("Error fetching groups:", err);
+          setError("No se pudieron cargar los grupos.");
+          setLoading(false);
+        }
+      );
+
+      const attendanceQuery = query(collection(db, 'users', uid, 'attendance'));
+      unsubAttendance = onSnapshot(
+        attendanceQuery,
+        (snapshot) => {
+          const attendance = snapshot.docs.map(doc => doc.data() as AttendanceRecord);
+          setState(prevState => ({ ...prevState, attendance }));
+        }, 
+        (err) => {
+          console.error("Error fetching attendance:", err);
+          setError("No se pudieron cargar los registros de asistencia.");
+        }
+      );
+    } catch(err) {
+      console.error("Error setting up listeners", err);
+      setError("No se pudo conectar con la base de datos.");
+      setLoading(false);
+    }
+
+    return () => {
+      if (unsubGroups) unsubGroups();
+      if (unsubAttendance) unsubAttendance();
+    };
+  }, [user]);
+
+  const withUser = <T extends any[]>(func: (uid: string, ...args: T) => Promise<any>) => {
+    return (...args: T): Promise<any> => {
+      if (!user) return Promise.reject(new Error("Usuario no autenticado."));
+      return func(user.uid, ...args);
+    };
   };
-  
-  const deleteGroup = async (groupId: string) => {
-    setState(currentState => {
-      const groupToDelete = currentState.groups.find(g => g.id === groupId);
-      if (!groupToDelete) return currentState;
 
-      const studentIdsToDelete = new Set(groupToDelete.students.map(s => s.id));
-      const updatedGroups = currentState.groups.filter(g => g.id !== groupId);
-      const updatedAttendance = currentState.attendance.filter(a => !studentIdsToDelete.has(a.studentId));
+  const addGroup = withUser(async (uid: string, groupData: Omit<Group, 'id' | 'students'>) => {
+    await addDoc(collection(db, 'users', uid, 'groups'), { ...groupData, students: [] });
+  });
+
+  const deleteGroup = withUser(async (uid: string, groupId: string) => {
+    const groupRef = doc(db, 'users', uid, 'groups', groupId);
+    const groupDoc = await getDocs(query(collection(db, 'users', uid, 'groups'), where('__name__', '==', groupId)));
+
+
+    if (!groupDoc.empty) {
+      const groupData = groupDoc.docs[0].data() as Group;
+      const studentIds = groupData.students.map(s => s.id);
       
-      return { ...currentState, groups: updatedGroups, attendance: updatedAttendance };
-    });
-  };
+      if (studentIds.length > 0) {
+        const attendanceQuery = query(collection(db, 'users', uid, 'attendance'), where('studentId', 'in', studentIds));
+        const attendanceSnapshot = await getDocs(attendanceQuery);
+        const batch = writeBatch(db);
+        attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      }
+      
+      await deleteDoc(groupRef);
+    }
+  });
 
-  const addStudent = async (groupId: string, studentData: Omit<Student, 'id' | 'photoUrl' | 'observations'> & { observations?: string }) => {
+  const addStudent = withUser(async (uid: string, groupId: string, studentData: Omit<Student, 'id' | 'photoUrl' | 'observations'> & { observations?: string }) => {
     const newStudent: Student = {
       ...studentData,
       id: `s${Date.now()}`,
       photoUrl: `https://picsum.photos/seed/s${Date.now()}/100`,
       observations: studentData.observations || '',
     };
-    setState(currentState => ({
-      ...currentState,
-      groups: currentState.groups.map(g =>
-        g.id === groupId ? { ...g, students: [...g.students, newStudent] } : g
-      ),
-    }));
-  };
+    const groupRef = doc(db, 'users', uid, 'groups', groupId);
+    await updateDoc(groupRef, { students: arrayUnion(newStudent) });
+  });
 
-  const editStudent = async (groupId: string, updatedStudent: Student) => {
-    setState(currentState => ({
-      ...currentState,
-      groups: currentState.groups.map(g =>
-        g.id === groupId
-        ? { ...g, students: g.students.map(s => s.id === updatedStudent.id ? updatedStudent : s) }
-        : g
-      ),
-    }));
-  };
-
-  const deleteStudent = async (groupId: string, studentId: string) => {
-    setState(currentState => {
-      const updatedGroups = currentState.groups.map(g =>
-          g.id === groupId
-          ? { ...g, students: g.students.filter(s => s.id !== studentId) }
-          : g
-      );
-      const updatedAttendance = currentState.attendance.filter(a => a.studentId !== studentId);
-      return { ...currentState, groups: updatedGroups, attendance: updatedAttendance };
+  const editStudent = withUser(async (uid: string, groupId: string, updatedStudent: Student) => {
+    const groupRef = doc(db, 'users', uid, 'groups', groupId);
+    await runTransaction(db, async (transaction) => {
+      const groupDoc = await transaction.get(groupRef);
+      if (!groupDoc.exists()) throw "El grupo no existe!";
+      
+      const groupData = groupDoc.data() as Omit<Group, 'id'>;
+      const updatedStudents = groupData.students.map(s => s.id === updatedStudent.id ? updatedStudent : s);
+      transaction.update(groupRef, { students: updatedStudents });
     });
-  };
+  });
 
-  const addStudentsBulk = async (groupId: string, newStudents: Student[]) => {
-    setState(currentState => ({
-      ...currentState,
-      groups: currentState.groups.map(g =>
-        g.id === groupId ? { ...g, students: [...g.students, ...newStudents] } : g
-      ),
-    }));
-  };
-  
-  const setAttendance = async (records: AttendanceRecord[]) => {
-    setState(currentState => {
-      const newAttendanceMap = new Map(records.map(r => [`${r.studentId}-${r.date}`, r]));
-      const updatedAttendance = [
-        ...currentState.attendance.filter(a => !newAttendanceMap.has(`${a.studentId}-${a.date}`)),
-        ...records
-      ];
-      return { ...currentState, attendance: updatedAttendance };
+  const deleteStudent = withUser(async (uid: string, groupId: string, studentId: string) => {
+    const attendanceQueryRef = query(collection(db, 'users', uid, 'attendance'), where('studentId', '==', studentId));
+    const attendanceSnapshot = await getDocs(attendanceQueryRef);
+    const batch = writeBatch(db);
+    attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+
+    const groupRef = doc(db, 'users', uid, 'groups', groupId);
+     await runTransaction(db, async (transaction) => {
+      const groupDoc = await transaction.get(groupRef);
+      if (!groupDoc.exists()) throw "El grupo no existe!";
+      
+      const groupData = groupDoc.data() as Omit<Group, 'id'>;
+      const updatedStudents = groupData.students.filter(s => s.id !== studentId);
+      transaction.update(groupRef, { students: updatedStudents });
     });
-  };
+  });
+
+  const addStudentsBulk = withUser(async (uid: string, groupId: string, newStudents: Student[]) => {
+    if (newStudents.length === 0) return;
+    const groupRef = doc(db, 'users', uid, 'groups', groupId);
+    await updateDoc(groupRef, { students: arrayUnion(...newStudents) });
+  });
+
+  const setAttendance = withUser(async (uid: string, records: AttendanceRecord[]) => {
+    const batch = writeBatch(db);
+    records.forEach(record => {
+      const docId = `${record.studentId}_${record.date}`;
+      const recordRef = doc(db, 'users', uid, 'attendance', docId);
+      batch.set(recordRef, record);
+    });
+    await batch.commit();
+  });
 
   const value = { state, loading, error, addGroup, deleteGroup, addStudent, editStudent, deleteStudent, addStudentsBulk, setAttendance };
-  
-  // The app will now render its children immediately. The Firebase-related loading/error screens are no longer needed.
+
+  if (loading && user) {
+    return <div className="flex items-center justify-center h-screen w-full text-lg font-semibold text-slate-700 dark:text-slate-300">Cargando datos...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full p-4">
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
+          <p className="font-bold">Error de Conexión</p>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };
