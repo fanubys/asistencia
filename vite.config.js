@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // Vite carga automáticamente los archivos .env y expone las variables con el prefijo VITE_
-  // a import.meta.env. No se necesita configuración manual aquí si sigues
-  // la convención del prefijo VITE_ para tus variables de entorno.
+  // Las variables de entorno son inyectadas en el entorno de ejecución como `process.env`.
+  // No se necesita configuración de Vite para cargarlas, pero asegúrate
+  // de que las variables (ej. VITE_API_KEY, API_KEY) estén disponibles en tu entorno de despliegue.
 });
