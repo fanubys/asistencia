@@ -41,7 +41,7 @@ const GroupDetailPage: React.FC = () => {
       setIsAddModalOpen(false);
     } catch(error) {
       console.error("Failed to add student:", error);
-      alert("Error: no se pudo añadir al estudiante.");
+      alert((error as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -61,7 +61,7 @@ const GroupDetailPage: React.FC = () => {
       setStudentToEdit(null);
     } catch(error) {
       console.error("Failed to edit student:", error);
-      alert("Error: no se pudo editar al estudiante.");
+      alert((error as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -69,8 +69,12 @@ const GroupDetailPage: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (group && studentToDelete) {
-      await deleteStudent(group.id, studentToDelete.id);
-      setStudentToDelete(null);
+      try {
+        await deleteStudent(group.id, studentToDelete.id);
+        setStudentToDelete(null);
+      } catch (error) {
+        alert((error as Error).message);
+      }
     }
   };
 
@@ -112,10 +116,12 @@ const GroupDetailPage: React.FC = () => {
             if (newStudents.length > 0) {
               await addStudentsBulk(group.id, newStudents);
               alert(`${newStudents.length} estudiantes importados correctamente.`);
+            } else {
+              alert("No se encontraron estudiantes válidos en el archivo. Asegúrate de que las columnas se llamen 'nombre' y/o 'apellido'.");
             }
           } catch(error) {
             console.error("Error during bulk import:", error);
-            alert('Ocurrió un error al generar los avatares para los estudiantes.');
+            alert((error as Error).message);
           } finally {
             setIsImporting(false);
           }

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header.tsx';
@@ -72,7 +73,7 @@ const AttendancePage: React.FC = () => {
       navigate(`/grupos/${groupId}`);
     } catch (error) {
       console.error("Failed to save attendance:", error);
-      alert("Error: No se pudo guardar la asistencia.");
+      alert((error as Error).message);
     } finally {
       setIsSaving(false);
     }

@@ -45,7 +45,7 @@ const GroupsPage: React.FC = () => {
       setIsAddModalOpen(false);
     } catch (error) {
       console.error("Failed to add group:", error);
-      alert("Error: No se pudo crear el grupo.");
+      alert((error as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -61,7 +61,7 @@ const GroupsPage: React.FC = () => {
       setIsEditModalOpen(false);
     } catch (error) {
       console.error("Failed to edit group:", error);
-      alert("Error: No se pudo editar el grupo.");
+      alert((error as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -75,8 +75,13 @@ const GroupsPage: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (groupToDelete) {
-      await deleteGroup(groupToDelete.id);
-      setGroupToDelete(null);
+      try {
+        await deleteGroup(groupToDelete.id);
+        setGroupToDelete(null);
+      } catch (error) {
+        console.error("Failed to delete group:", error);
+        alert((error as Error).message);
+      }
     }
   };
   
@@ -135,7 +140,7 @@ const GroupsPage: React.FC = () => {
 
           } catch (error) {
             console.error("Error processing students for import:", error);
-            alert('Ocurrió un error al generar los avatares e importar los estudiantes.');
+            alert((error as Error).message || 'Ocurrió un error al generar los avatares e importar los estudiantes.');
           } finally {
             setIsSubmitting(false);
           }
@@ -147,7 +152,7 @@ const GroupsPage: React.FC = () => {
       });
     } catch (error) {
       console.error("Failed to import group:", error);
-      alert("Error: No se pudo crear el grupo para la importación.");
+      alert((error as Error).message);
       setIsSubmitting(false);
     }
   };
@@ -159,10 +164,10 @@ const GroupsPage: React.FC = () => {
         title="Mis Grupos"
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+            <Button variant="primary" onClick={() => setIsImportModalOpen(true)}>
               <UploadIcon /> Importar Grupo
             </Button>
-            <Button onClick={() => setIsAddModalOpen(true)}>
+            <Button variant="secondary" onClick={() => setIsAddModalOpen(true)}>
               <PlusCircleIcon /> Crear Grupo
             </Button>
           </div>

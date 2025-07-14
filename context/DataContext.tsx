@@ -1,5 +1,19 @@
+
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import * as firestore from 'firebase/firestore';
+import { 
+    collection,
+    query,
+    onSnapshot,
+    addDoc,
+    doc,
+    updateDoc,
+    deleteDoc,
+    where,
+    getDocs,
+    writeBatch,
+    runTransaction,
+    arrayUnion
+} from 'firebase/firestore';
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
 import { db, firebaseInitializationError } from '../firebase/config.ts';
 import { useAuth } from './AuthContext.tsx';
@@ -22,6 +36,17 @@ interface DataContextProps {
 }
 
 export const DataContext = createContext<DataContextProps | undefined>(undefined);
+
+const getFirebaseErrorMessage = (error: any, operation: string): string => {
+    console.error(`Firebase error during ${operation}:`, error);
+    if (error.code === 'permission-denied') {
+        return `Error de Permisos: No se pudo ${operation}. Por favor, revisa las reglas de seguridad de tu base de datos en Firebase.`;
+    }
+    if (error.code === 'unavailable') {
+        return `Servicio no disponible: No se pudo ${operation}. Revisa tu conexión a internet.`;
+    }
+    return `Error al ${operation}. Por favor, inténtalo de nuevo.`;
+};
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -54,8 +79,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let unsubAttendance: Unsubscribe | undefined;
 
     try {
-      const groupsQuery = firestore.query(firestore.collection(db, 'users', uid, 'groups'));
-      unsubGroups = firestore.onSnapshot(
+      const groupsQuery = query(collection(db, 'users', uid, 'groups'));
+      unsubGroups = onSnapshot(
         groupsQuery,
         (snapshot) => {
           const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group));
@@ -69,8 +94,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       );
 
-      const attendanceQuery = firestore.query(firestore.collection(db, 'users', uid, 'attendance'));
-      unsubAttendance = firestore.onSnapshot(
+      const attendanceQuery = query(collection(db, 'users', uid, 'attendance'));
+      unsubAttendance = onSnapshot(
         attendanceQuery,
         (snapshot) => {
           const attendance = snapshot.docs.map(doc => doc.data() as AttendanceRecord);
@@ -101,87 +126,129 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addGroup = withUser(async (uid: string, groupData: Omit<Group, 'id' | 'students'>) => {
-    const docRef = await firestore.addDoc(firestore.collection(db, 'users', uid, 'groups'), { ...groupData, students: [] });
-    return docRef.id;
+    try {
+      const docRef = await addDoc(collection(db, 'users', uid, 'groups'), { ...groupData, students: [] });
+      return docRef.id;
+    } catch (e: any) {
+      throw new Error(getFirebaseErrorMessage(e, 'crear el grupo'));
+    }
   });
 
   const editGroup = withUser(async (uid: string, groupId: string, groupData: { name: string; grade: string }) => {
-    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
-    await firestore.updateDoc(groupRef, groupData);
+    try {
+      const groupRef = doc(db, 'users', uid, 'groups', groupId);
+      await updateDoc(groupRef, groupData);
+    } catch (e: any) {
+      throw new Error(getFirebaseErrorMessage(e, 'editar el grupo'));
+    }
   });
 
   const deleteGroup = withUser(async (uid: string, groupId: string) => {
-    const groupToDelete = state.groups.find(g => g.id === groupId);
-    
-    if (groupToDelete && groupToDelete.students.length > 0) {
-      const studentIds = groupToDelete.students.map(s => s.id);
-      const attendanceQuery = firestore.query(firestore.collection(db, 'users', uid, 'attendance'), firestore.where('studentId', 'in', studentIds));
-      const attendanceSnapshot = await firestore.getDocs(attendanceQuery);
-      const batch = firestore.writeBatch(db);
-      attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
+    try {
+      const groupToDelete = state.groups.find(g => g.id === groupId);
+      
+      if (groupToDelete && groupToDelete.students.length > 0) {
+        const studentIds = groupToDelete.students.map(s => s.id);
+        const MAX_IN_CLAUSE_SIZE = 30;
+
+        for (let i = 0; i < studentIds.length; i += MAX_IN_CLAUSE_SIZE) {
+            const batchIds = studentIds.slice(i, i + MAX_IN_CLAUSE_SIZE);
+            const attendanceQuery = query(
+                collection(db, 'users', uid, 'attendance'),
+                where('studentId', 'in', batchIds)
+            );
+            const attendanceSnapshot = await getDocs(attendanceQuery);
+            if (!attendanceSnapshot.empty) {
+                const batch = writeBatch(db);
+                attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            }
+        }
+      }
+      
+      const groupRef = doc(db, 'users', uid, 'groups', groupId);
+      await deleteDoc(groupRef);
+    } catch (e: any) {
+      throw new Error(getFirebaseErrorMessage(e, 'eliminar el grupo y su asistencia'));
     }
-    
-    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
-    await firestore.deleteDoc(groupRef);
   });
 
   const addStudent = withUser(async (uid: string, groupId: string, studentData: Omit<Student, 'id' | 'photoUrl' | 'observations'> & { observations?: string }) => {
-    const photoUrl = await generateAvatar(studentData.name);
-    const newStudent: Student = {
-      ...studentData,
-      id: `s${Date.now()}`,
-      photoUrl: photoUrl,
-      observations: studentData.observations || '',
-    };
-    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
-    await firestore.updateDoc(groupRef, { students: firestore.arrayUnion(newStudent) });
+    try {
+      const photoUrl = await generateAvatar(studentData.name);
+      const newStudent: Student = {
+        ...studentData,
+        id: `s${Date.now()}`,
+        photoUrl: photoUrl,
+        observations: studentData.observations || '',
+      };
+      const groupRef = doc(db, 'users', uid, 'groups', groupId);
+      await updateDoc(groupRef, { students: arrayUnion(newStudent) });
+    } catch (e: any) {
+      throw new Error(getFirebaseErrorMessage(e, 'añadir el estudiante'));
+    }
   });
 
   const editStudent = withUser(async (uid: string, groupId: string, updatedStudent: Student) => {
-    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
-    await firestore.runTransaction(db, async (transaction) => {
-      const groupDoc = await transaction.get(groupRef);
-      if (!groupDoc.exists()) throw "El grupo no existe!";
-      
-      const groupData = groupDoc.data() as Omit<Group, 'id'>;
-      const updatedStudents = groupData.students.map(s => s.id === updatedStudent.id ? updatedStudent : s);
-      transaction.update(groupRef, { students: updatedStudents });
-    });
+    try {
+      const groupRef = doc(db, 'users', uid, 'groups', groupId);
+      await runTransaction(db, async (transaction) => {
+        const groupDoc = await transaction.get(groupRef);
+        if (!groupDoc.exists()) throw "El grupo no existe!";
+        
+        const groupData = groupDoc.data() as Omit<Group, 'id'>;
+        const updatedStudents = groupData.students.map(s => s.id === updatedStudent.id ? updatedStudent : s);
+        transaction.update(groupRef, { students: updatedStudents });
+      });
+    } catch (e: any) {
+      throw new Error(getFirebaseErrorMessage(e, 'editar el estudiante'));
+    }
   });
 
   const deleteStudent = withUser(async (uid: string, groupId: string, studentId: string) => {
-    const attendanceQueryRef = firestore.query(firestore.collection(db, 'users', uid, 'attendance'), firestore.where('studentId', '==', studentId));
-    const attendanceSnapshot = await firestore.getDocs(attendanceQueryRef);
-    const batch = firestore.writeBatch(db);
-    attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
+    try {
+      const attendanceQueryRef = query(collection(db, 'users', uid, 'attendance'), where('studentId', '==', studentId));
+      const attendanceSnapshot = await getDocs(attendanceQueryRef);
+      const batch = writeBatch(db);
+      attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
 
-    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
-     await firestore.runTransaction(db, async (transaction) => {
-      const groupDoc = await transaction.get(groupRef);
-      if (!groupDoc.exists()) throw "El grupo no existe!";
-      
-      const groupData = groupDoc.data() as Omit<Group, 'id'>;
-      const updatedStudents = groupData.students.filter(s => s.id !== studentId);
-      transaction.update(groupRef, { students: updatedStudents });
-    });
+      const groupRef = doc(db, 'users', uid, 'groups', groupId);
+      await runTransaction(db, async (transaction) => {
+        const groupDoc = await transaction.get(groupRef);
+        if (!groupDoc.exists()) throw "El grupo no existe!";
+        
+        const groupData = groupDoc.data() as Omit<Group, 'id'>;
+        const updatedStudents = groupData.students.filter(s => s.id !== studentId);
+        transaction.update(groupRef, { students: updatedStudents });
+      });
+    } catch (e: any) {
+        throw new Error(getFirebaseErrorMessage(e, 'eliminar el estudiante'));
+    }
   });
 
   const addStudentsBulk = withUser(async (uid: string, groupId: string, newStudents: Student[]) => {
-    if (newStudents.length === 0) return;
-    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
-    await firestore.updateDoc(groupRef, { students: firestore.arrayUnion(...newStudents) });
+    try {
+      if (newStudents.length === 0) return;
+      const groupRef = doc(db, 'users', uid, 'groups', groupId);
+      await updateDoc(groupRef, { students: arrayUnion(...newStudents) });
+    } catch(e: any) {
+        throw new Error(getFirebaseErrorMessage(e, 'importar los estudiantes'));
+    }
   });
 
   const setAttendance = withUser(async (uid: string, records: AttendanceRecord[]) => {
-    const batch = firestore.writeBatch(db);
-    records.forEach(record => {
-      const docId = `${record.studentId}_${record.date}`;
-      const recordRef = firestore.doc(db, 'users', uid, 'attendance', docId);
-      batch.set(recordRef, record);
-    });
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      records.forEach(record => {
+        const docId = `${record.studentId}_${record.date}`;
+        const recordRef = doc(db, 'users', uid, 'attendance', docId);
+        batch.set(recordRef, record);
+      });
+      await batch.commit();
+    } catch (e: any) {
+        throw new Error(getFirebaseErrorMessage(e, 'guardar la asistencia'));
+    }
   });
 
   const value = { state, loading, error, addGroup, editGroup, deleteGroup, addStudent, editStudent, deleteStudent, addStudentsBulk, setAttendance };
