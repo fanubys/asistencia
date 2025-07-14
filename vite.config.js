@@ -1,24 +1,20 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
-  plugins: [react()],
-  build: {
-    rollupOptions: {
-      // Externalize dependencies that are loaded via the importmap in index.html.
-      // This prevents Vite from bundling them, allowing the browser to handle
-      // these imports at runtime.
-      external: [
-        'react',
-        'react-router-dom',
-        'papaparse',
-        'recharts',
-        '@google/genai',
-        // Regex to match deep imports for packages like react-dom and firebase
-        /^react\//,
-        /^react-dom\//,
-        /^firebase\//,
-      ],
+// https://vitejs.dev/config/
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
+    plugins: [react()],
+    define: {
+      // Expose environment variables to the client-side code
+      'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      'process.env.AUTH_DOMAIN': JSON.stringify(env.AUTH_DOMAIN),
+      'process.env.PROJECT_ID': JSON.stringify(env.PROJECT_ID),
+      'process.env.STORAGE_BUCKET': JSON.stringify(env.STORAGE_BUCKET),
+      'process.env.MESSAGING_SENDER_ID': JSON.stringify(env.MESSAGING_SENDER_ID),
+      'process.env.APP_ID': JSON.stringify(env.APP_ID),
+      'process.env.MEASUREMENT_ID': JSON.stringify(env.MEASUREMENT_ID),
     },
-  },
+  };
 });

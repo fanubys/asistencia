@@ -55,7 +55,7 @@ const SettingsPage: React.FC = () => {
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Sesión</h3>
           <div className="mt-4 flex items-center justify-between">
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Sesión iniciada como: <span className="font-bold text-slate-800 dark:text-slate-200">admin</span>
+                  Tu sesión está activa.
               </p>
               <Button variant="danger" onClick={handleLogout}>
                   Cerrar Sesión

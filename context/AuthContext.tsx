@@ -1,12 +1,12 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { User, onAuthStateChanged, signInAnonymously, signOut } from 'firebase/auth';
-import { auth } from '../firebase/config.ts';
+import { auth, firebaseInitializationError } from '../firebase/config.ts';
 
 interface AuthContextProps {
   user: User | null;
   loading: boolean;
   error: string | null;
-  login: (username: string) => Promise<void>;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -18,9 +18,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (firebaseInitializationError) {
+      setError(firebaseInitializationError.message);
+      setLoading(false);
+      return;
+    }
     if (!auth) {
         console.error("Firebase Auth no está configurado.");
-        setError("La configuración de Firebase Auth es inválida.");
+        setError("La configuración de Firebase Auth es inválida o no se pudo inicializar.");
         setLoading(false);
         return;
     }
@@ -33,14 +38,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => unsubscribe();
   }, []);
 
-  const login = async (username: string) => {
+  const login = async () => {
     setError(null);
-    if (username.toLowerCase() !== 'admin') {
-      const err = new Error("Usuario incorrecto.");
-      setError("Usuario incorrecto.");
-      throw err;
-    }
-
     // Only sign in if there's no current user.
     if (auth.currentUser) {
       setUser(auth.currentUser);

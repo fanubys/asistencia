@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc, runTransaction, writeBatch, query, where, getDocs, arrayUnion } from 'firebase/firestore';
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
-import { db } from '../firebase/config.ts';
+import { db, firebaseInitializationError } from '../firebase/config.ts';
 import { useAuth } from './AuthContext.tsx';
 import { generateAvatar } from '../lib/gemini.ts';
 
@@ -32,6 +32,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) {
       setState({ groups: [], attendance: [] });
       setLoading(false); 
+      return;
+    }
+    
+    if (firebaseInitializationError) {
+      setError(firebaseInitializationError.message);
+      setLoading(false);
       return;
     }
 
@@ -186,7 +192,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return (
       <div className="flex items-center justify-center h-screen w-full p-4">
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md" role="alert">
-          <p className="font-bold">Error de Conexión</p>
+          <p className="font-bold">Error de Configuración</p>
           <p>{error}</p>
         </div>
       </div>

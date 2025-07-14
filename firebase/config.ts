@@ -1,25 +1,39 @@
-
 import { initializeApp } from "firebase/app";
 import type { FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore, enableIndexedDbPersistence } from "firebase/firestore";
 
-// Your web app's Firebase configuration
+// Your web app's Firebase configuration is now loaded from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyA7sqMHexmWhiztn0GAlP1p5IzwehRvbw8",
-  authDomain: "asistencia-pro.firebaseapp.com",
-  projectId: "asistencia-pro",
-  storageBucket: "asistencia-pro.appspot.com",
-  messagingSenderId: "912402743640",
-  appId: "1:912402743640:web:aa3799b59ffadc500ee52d",
-  measurementId: "G-T3Y6VZS64E"
+  apiKey: process.env.API_KEY,
+  authDomain: process.env.AUTH_DOMAIN,
+  projectId: process.env.PROJECT_ID,
+  storageBucket: process.env.STORAGE_BUCKET,
+  messagingSenderId: process.env.MESSAGING_SENDER_ID,
+  appId: process.env.APP_ID,
+  measurementId: process.env.MEASUREMENT_ID
 };
 
+let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let firebaseInitializationError: Error | null = null;
 
 try {
-  const app: FirebaseApp = initializeApp(firebaseConfig);
+  // Create a temporary config object without the optional measurementId for validation
+  const { measurementId, ...requiredConfig } = firebaseConfig;
+  
+  // Check which specific environment variables are missing
+  const missingKeys = Object.entries(requiredConfig)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingKeys.length > 0) {
+    // Provide a more descriptive error message to guide the user.
+    throw new Error(`Faltan variables de configuración de Firebase. Por favor, crea un archivo '.env' en la raíz del proyecto y añade las claves de configuración. Las claves que parecen faltar son: ${missingKeys.join(', ')}.`);
+  }
+
+  app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
 
@@ -32,8 +46,9 @@ try {
       }
     });
 } catch (error) {
-  console.error("Firebase initialization error", error);
-  // The DataContext will handle the error state if db is not initialized.
+  firebaseInitializationError = error as Error;
+  console.error("Firebase initialization error:", firebaseInitializationError.message);
+  // Let db and auth be undefined, the contexts will handle it.
 }
 
-export { db, auth };
+export { db, auth, firebaseInitializationError };
