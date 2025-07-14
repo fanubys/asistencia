@@ -1,8 +1,12 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
+/// <reference types="vite/client" />
+
+// Fallback to a placeholder if the API key is missing.
+const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
 // Initialize the GoogleGenAI client with the API key from the environment variable.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: geminiApiKey || '' });
 
 /**
  * Generates a unique, abstract avatar for a student using the Gemini API.
@@ -10,9 +14,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
  * @returns A base64 encoded JPEG data URL string.
  */
 export async function generateAvatar(studentName: string): Promise<string> {
-  // Fallback to a placeholder if the API key is missing.
-  if (!process.env.API_KEY) {
-      console.warn('Gemini API key (API_KEY) is not configured. Falling back to default avatar.');
+  if (!geminiApiKey) {
+      console.warn('Gemini API key (VITE_GEMINI_API_KEY) is not configured. Falling back to default avatar.');
       return `https://picsum.photos/seed/${encodeURIComponent(studentName)}/100`;
   }
 
@@ -63,8 +66,8 @@ interface AttendanceSummaryData {
  * @returns A structured object with title, summary points, and suggestions.
  */
 export async function generateAttendanceSummary(data: AttendanceSummaryData): Promise<AttendanceSummary> {
-  if (!process.env.API_KEY) {
-    throw new Error("La función de análisis con IA no está disponible. Por favor, configura la clave de API de Gemini (API_KEY).");
+  if (!geminiApiKey) {
+    throw new Error("La función de análisis con IA no está disponible. Por favor, configura la clave de API de Gemini (VITE_GEMINI_API_KEY).");
   }
 
   const prompt = `

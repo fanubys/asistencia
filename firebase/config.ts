@@ -1,12 +1,14 @@
 import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
-import {
+import { 
   getFirestore,
-  enableIndexedDbPersistence,
+  enableMultiTabIndexedDbPersistence,
   Firestore
-} from "firebase/firestore";
+} from "firebase/firestore/bundle";
 
-// ✅ Usar import.meta.env en lugar de process.env
+/// <reference types="vite/client" />
+
+// Your web app's Firebase configuration is now loaded from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
   authDomain: import.meta.env.VITE_AUTH_DOMAIN,
@@ -23,31 +25,35 @@ let db: Firestore;
 let firebaseInitializationError: Error | null = null;
 
 try {
+  // Create a temporary config object without the optional measurementId for validation
   const { measurementId, ...requiredConfig } = firebaseConfig;
+  
+  // Helper to convert camelCase to SNAKE_UPPER_CASE
+  const toSnakeUpperCase = (str: string) => str.replace(/([A-Z])/g, '_$1').toUpperCase();
 
+  // Check which specific environment variables are missing
   const missingKeys = Object.entries(requiredConfig)
-    .filter(([, value]) => !value)
-    .map(([key]) => `VITE_${key.toUpperCase()}`);
+    .filter(([key, value]) => !value && key !== 'authDomain') // authDomain can be undefined for some services
+    .map(([key]) => `VITE_${toSnakeUpperCase(key)}`); 
 
   if (missingKeys.length > 0) {
-    throw new Error(`Faltan variables de configuración de Firebase. Por favor, configuralas en tu archivo .env o en Netlify: ${missingKeys.join(', ')}.`);
+    // Provide a more descriptive error message to guide the user.
+    throw new Error(`Faltan variables de configuración de Firebase. Por favor, configura las siguientes claves en tu archivo .env o en tu entorno de despliegue: ${missingKeys.join(', ')}.`);
   }
 
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
+  // Initialize Firestore and then enable multi-tab persistence
   db = getFirestore(app);
-
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('Persistencia rechazada: hay otra pestaña activa.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('Persistencia no soportada en este navegador.');
-    }
-  });
+  enableMultiTabIndexedDbPersistence(db)
+    .catch((err) => {
+      console.warn(`Firebase multi-tab persistence could not be enabled: ${err.code}`);
+    });
 
 } catch (error) {
   firebaseInitializationError = error as Error;
-  console.error("Error al inicializar Firebase:", firebaseInitializationError.message);
+  console.error("Firebase initialization error:", firebaseInitializationError.message);
+  // Let db and auth be undefined, the contexts will handle it.
 }
 
 export { db, auth, firebaseInitializationError };

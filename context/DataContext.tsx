@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { 
     collection,
@@ -13,7 +14,7 @@ import {
     writeBatch,
     runTransaction,
     arrayUnion
-} from '@firebase/firestore';
+} from 'firebase/firestore/bundle';
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
 import { db, firebaseInitializationError } from '../firebase/config.ts';
 import { useAuth } from './AuthContext.tsx';
