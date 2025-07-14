@@ -1,18 +1,5 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import {
-  query,
-  collection,
-  onSnapshot,
-  addDoc,
-  doc,
-  getDocs,
-  where,
-  writeBatch,
-  deleteDoc,
-  updateDoc,
-  arrayUnion,
-  runTransaction,
-} from 'firebase/firestore';
+import * as firestore from 'firebase/firestore';
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
 import { db, firebaseInitializationError } from '../firebase/config.ts';
 import { useAuth } from './AuthContext.tsx';
@@ -24,7 +11,8 @@ interface DataContextProps {
   state: DataState;
   loading: boolean;
   error: string | null;
-  addGroup: (groupData: Omit<Group, 'id' | 'students'>) => Promise<void>;
+  addGroup: (groupData: Omit<Group, 'id' | 'students'>) => Promise<string>;
+  editGroup: (groupId: string, groupData: { name: string; grade: string }) => Promise<void>;
   deleteGroup: (groupId: string) => Promise<void>;
   addStudent: (groupId: string, studentData: Omit<Student, 'id' | 'photoUrl' | 'observations'> & { observations?: string }) => Promise<void>;
   editStudent: (groupId: string, student: Student) => Promise<void>;
@@ -66,8 +54,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let unsubAttendance: Unsubscribe | undefined;
 
     try {
-      const groupsQuery = query(collection(db, 'users', uid, 'groups'));
-      unsubGroups = onSnapshot(
+      const groupsQuery = firestore.query(firestore.collection(db, 'users', uid, 'groups'));
+      unsubGroups = firestore.onSnapshot(
         groupsQuery,
         (snapshot) => {
           const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group));
@@ -81,8 +69,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       );
 
-      const attendanceQuery = query(collection(db, 'users', uid, 'attendance'));
-      unsubAttendance = onSnapshot(
+      const attendanceQuery = firestore.query(firestore.collection(db, 'users', uid, 'attendance'));
+      unsubAttendance = firestore.onSnapshot(
         attendanceQuery,
         (snapshot) => {
           const attendance = snapshot.docs.map(doc => doc.data() as AttendanceRecord);
@@ -113,28 +101,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addGroup = withUser(async (uid: string, groupData: Omit<Group, 'id' | 'students'>) => {
-    await addDoc(collection(db, 'users', uid, 'groups'), { ...groupData, students: [] });
+    const docRef = await firestore.addDoc(firestore.collection(db, 'users', uid, 'groups'), { ...groupData, students: [] });
+    return docRef.id;
+  });
+
+  const editGroup = withUser(async (uid: string, groupId: string, groupData: { name: string; grade: string }) => {
+    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
+    await firestore.updateDoc(groupRef, groupData);
   });
 
   const deleteGroup = withUser(async (uid: string, groupId: string) => {
-    const groupRef = doc(db, 'users', uid, 'groups', groupId);
-    const groupDoc = await getDocs(query(collection(db, 'users', uid, 'groups'), where('__name__', '==', groupId)));
-
-
-    if (!groupDoc.empty) {
-      const groupData = groupDoc.docs[0].data() as Group;
-      const studentIds = groupData.students.map(s => s.id);
-      
-      if (studentIds.length > 0) {
-        const attendanceQuery = query(collection(db, 'users', uid, 'attendance'), where('studentId', 'in', studentIds));
-        const attendanceSnapshot = await getDocs(attendanceQuery);
-        const batch = writeBatch(db);
-        attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
-      }
-      
-      await deleteDoc(groupRef);
+    const groupToDelete = state.groups.find(g => g.id === groupId);
+    
+    if (groupToDelete && groupToDelete.students.length > 0) {
+      const studentIds = groupToDelete.students.map(s => s.id);
+      const attendanceQuery = firestore.query(firestore.collection(db, 'users', uid, 'attendance'), firestore.where('studentId', 'in', studentIds));
+      const attendanceSnapshot = await firestore.getDocs(attendanceQuery);
+      const batch = firestore.writeBatch(db);
+      attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
     }
+    
+    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
+    await firestore.deleteDoc(groupRef);
   });
 
   const addStudent = withUser(async (uid: string, groupId: string, studentData: Omit<Student, 'id' | 'photoUrl' | 'observations'> & { observations?: string }) => {
@@ -145,13 +134,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       photoUrl: photoUrl,
       observations: studentData.observations || '',
     };
-    const groupRef = doc(db, 'users', uid, 'groups', groupId);
-    await updateDoc(groupRef, { students: arrayUnion(newStudent) });
+    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
+    await firestore.updateDoc(groupRef, { students: firestore.arrayUnion(newStudent) });
   });
 
   const editStudent = withUser(async (uid: string, groupId: string, updatedStudent: Student) => {
-    const groupRef = doc(db, 'users', uid, 'groups', groupId);
-    await runTransaction(db, async (transaction) => {
+    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
+    await firestore.runTransaction(db, async (transaction) => {
       const groupDoc = await transaction.get(groupRef);
       if (!groupDoc.exists()) throw "El grupo no existe!";
       
@@ -162,14 +151,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const deleteStudent = withUser(async (uid: string, groupId: string, studentId: string) => {
-    const attendanceQueryRef = query(collection(db, 'users', uid, 'attendance'), where('studentId', '==', studentId));
-    const attendanceSnapshot = await getDocs(attendanceQueryRef);
-    const batch = writeBatch(db);
+    const attendanceQueryRef = firestore.query(firestore.collection(db, 'users', uid, 'attendance'), firestore.where('studentId', '==', studentId));
+    const attendanceSnapshot = await firestore.getDocs(attendanceQueryRef);
+    const batch = firestore.writeBatch(db);
     attendanceSnapshot.forEach(doc => batch.delete(doc.ref));
     await batch.commit();
 
-    const groupRef = doc(db, 'users', uid, 'groups', groupId);
-     await runTransaction(db, async (transaction) => {
+    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
+     await firestore.runTransaction(db, async (transaction) => {
       const groupDoc = await transaction.get(groupRef);
       if (!groupDoc.exists()) throw "El grupo no existe!";
       
@@ -181,21 +170,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addStudentsBulk = withUser(async (uid: string, groupId: string, newStudents: Student[]) => {
     if (newStudents.length === 0) return;
-    const groupRef = doc(db, 'users', uid, 'groups', groupId);
-    await updateDoc(groupRef, { students: arrayUnion(...newStudents) });
+    const groupRef = firestore.doc(db, 'users', uid, 'groups', groupId);
+    await firestore.updateDoc(groupRef, { students: firestore.arrayUnion(...newStudents) });
   });
 
   const setAttendance = withUser(async (uid: string, records: AttendanceRecord[]) => {
-    const batch = writeBatch(db);
+    const batch = firestore.writeBatch(db);
     records.forEach(record => {
       const docId = `${record.studentId}_${record.date}`;
-      const recordRef = doc(db, 'users', uid, 'attendance', docId);
+      const recordRef = firestore.doc(db, 'users', uid, 'attendance', docId);
       batch.set(recordRef, record);
     });
     await batch.commit();
   });
 
-  const value = { state, loading, error, addGroup, deleteGroup, addStudent, editStudent, deleteStudent, addStudentsBulk, setAttendance };
+  const value = { state, loading, error, addGroup, editGroup, deleteGroup, addStudent, editStudent, deleteStudent, addStudentsBulk, setAttendance };
 
   if (loading && user) {
     return <div className="flex items-center justify-center h-screen w-full text-lg font-semibold text-slate-700 dark:text-slate-300">Cargando datos...</div>;

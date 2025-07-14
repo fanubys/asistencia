@@ -18,7 +18,6 @@ export interface Group {
   id: string;
   name: string;
   grade: string;
-  estimatedStudents: number;
   students: Student[];
 }
 

@@ -2,7 +2,7 @@
 
 import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence, type Firestore } from "firebase/firestore";
+import * as firestore from "firebase/firestore";
 
 // Your web app's Firebase configuration is now loaded from environment variables
 const firebaseConfig = {
@@ -17,7 +17,7 @@ const firebaseConfig = {
 
 let app: FirebaseApp;
 let auth: Auth;
-let db: Firestore;
+let db: firestore.FirebaseFirestore;
 let firebaseInitializationError: Error | null = null;
 
 try {
@@ -41,8 +41,8 @@ try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   // Use getFirestore and enable persistence, which is compatible with older v9 SDKs
-  db = getFirestore(app);
-  enableIndexedDbPersistence(db).catch((err) => {
+  db = firestore.getFirestore(app);
+  firestore.enableIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
       console.warn('Firebase persistence could not be enabled. Another tab is open with persistence enabled.');
     } else if (err.code === 'unimplemented') {
