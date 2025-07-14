@@ -3,15 +3,15 @@ import type { FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore, enableIndexedDbPersistence } from "firebase/firestore";
 
-// Your web app's Firebase configuration is now loaded from environment variables
+// Firebase configuration usando variables de entorno de Vite
 const firebaseConfig = {
-  apiKey: process.env.API_KEY,
-  authDomain: process.env.AUTH_DOMAIN,
-  projectId: process.env.PROJECT_ID,
-  storageBucket: process.env.STORAGE_BUCKET,
-  messagingSenderId: process.env.MESSAGING_SENDER_ID,
-  appId: process.env.APP_ID,
-  measurementId: process.env.MEASUREMENT_ID
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID,
+  measurementId: import.meta.env.VITE_MEASUREMENT_ID
 };
 
 let app: FirebaseApp;
@@ -20,35 +20,32 @@ let db: Firestore;
 let firebaseInitializationError: Error | null = null;
 
 try {
-  // Create a temporary config object without the optional measurementId for validation
+  // Validar presencia de variables obligatorias
   const { measurementId, ...requiredConfig } = firebaseConfig;
-  
-  // Check which specific environment variables are missing
+
   const missingKeys = Object.entries(requiredConfig)
     .filter(([, value]) => !value)
     .map(([key]) => key);
 
   if (missingKeys.length > 0) {
-    // Provide a more descriptive error message to guide the user.
-    throw new Error(`Faltan variables de configuración de Firebase. Por favor, crea un archivo '.env' en la raíz del proyecto y añade las claves de configuración. Las claves que parecen faltar son: ${missingKeys.join(', ')}.`);
+    throw new Error(`Faltan variables de configuración de Firebase. Por favor, añadí las siguientes claves en tu archivo '.env' y en Netlify: ${missingKeys.join(', ')}.`);
   }
 
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
 
-  enableIndexedDbPersistence(db)
-    .catch((err) => {
-      if (err.code == 'failed-precondition') {
-        console.warn("Firebase persistence failed: multiple tabs open.");
-      } else if (err.code == 'unimplemented') {
-        console.warn("Firebase persistence not available in this browser.");
-      }
-    });
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn("Firebase persistence failed: múltiples pestañas abiertas.");
+    } else if (err.code === 'unimplemented') {
+      console.warn("Firebase persistence no disponible en este navegador.");
+    }
+  });
 } catch (error) {
   firebaseInitializationError = error as Error;
-  console.error("Firebase initialization error:", firebaseInitializationError.message);
-  // Let db and auth be undefined, the contexts will handle it.
+  console.error("Error al inicializar Firebase:", firebaseInitializationError.message);
+  // Los contextos pueden manejar auth y db indefinidos.
 }
 
 export { db, auth, firebaseInitializationError };
