@@ -1,5 +1,18 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc, runTransaction, writeBatch, query, where, getDocs, arrayUnion } from 'firebase/firestore';
+import {
+  query,
+  collection,
+  onSnapshot,
+  addDoc,
+  doc,
+  getDocs,
+  where,
+  writeBatch,
+  deleteDoc,
+  updateDoc,
+  arrayUnion,
+  runTransaction,
+} from 'firebase/firestore';
 import { Group, Student, AttendanceRecord, DataState } from '../types.ts';
 import { db, firebaseInitializationError } from '../firebase/config.ts';
 import { useAuth } from './AuthContext.tsx';

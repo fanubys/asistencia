@@ -11,7 +11,7 @@ import GroupDetailPage from './pages/GroupDetailPage.tsx';
 import AttendancePage from './pages/AttendancePage.tsx';
 import StatisticsPage from './pages/StatisticsPage.tsx';
 import SettingsPage from './pages/SettingsPage.tsx';
-import UpdateNotifier from './components/ui/UpdateNotifier.tsx';
+// import UpdateNotifier from './components/ui/UpdateNotifier.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import ProtectedRoute from './components/auth/ProtectedRoute.tsx';
 
@@ -42,7 +42,7 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               } />
             </Routes>
-            <UpdateNotifier />
+            {/* <UpdateNotifier /> */}
           </HashRouter>
         </DataProvider>
       </AuthProvider>
